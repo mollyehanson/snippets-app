@@ -13,8 +13,13 @@ def put(name, snippet):
     """
     logging.error("FIXME: Unimplemented - put({!r}, {!r})".format(name, snippet))
     cursor = connection.cursor()
-    command = "insert into snippets values (%s, %s)"
-    cursor.execute(command, (name, snippet))
+    try:
+        command = "insert into snippets values (%s, %s)"
+        cursor.execute(command, (name, snippet))
+    except psycopg2.IntegrityError as e:
+        connection.rollback()
+        command = "update snippets set message=%s where keyword=%s"
+        cursor.execute(command, (snippet, name))
     connection.commit()
     logging.debug("Snippet stored successfully.")
     return name, snippet
@@ -27,12 +32,16 @@ def get(name):
     Returns the snippet.
     """
     logging.error("FIXME: Unimplemented - get({!r})".format(name))
-    cursor = connection.cursor()
-    select = "this is the snippets values (%s,)"
-    cursor.fetchone(select, (name,))
-    connection.commit()
-    logging.debug("Snippet stored successfully.")
-    return ""
+    with connection, connection.cursor() as cursor:
+        cursor.execute("select message from snippets where keyword=%s", (name,))
+        row = cursor.fetchone()
+    if not row:
+        # No snippet was found with that name.
+        return "404: Snippet Not Found"
+    return row[0]
+    
+def catalog():
+    cursor.fetchall()
     
 def main():
     """Main function"""
@@ -49,6 +58,8 @@ def main():
 
     get_parser = subparsers.add_parser("get", help="Store a snippet")
     get_parser.add_argument("name", help="Name of the snippet")
+    
+    catalog_parser =subparsers.add_parser("catalog", help="Catalog of snippets")
 
     arguments = parser.parse_args()
     # Convert parsed arguments from Namespace to dictionary
