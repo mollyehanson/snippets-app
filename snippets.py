@@ -2,6 +2,10 @@ import logging
 import argparse
 import psycopg2
 
+logging.debug("Connecting to PostgreSQL")
+connection = psycopg2.connect(database="snippets")
+logging.debug("Database connection established.")
+
 # Set the log output file, and the log level
 logging.basicConfig(filename="snippets.log", level=logging.DEBUG)
 
@@ -11,16 +15,16 @@ def put(name, snippet):
 
     Returns the name and the snippet
     """
-    logging.error("FIXME: Unimplemented - put({!r}, {!r})".format(name, snippet))
-    cursor = connection.cursor()
-    try:
-        command = "insert into snippets values (%s, %s)"
-        cursor.execute(command, (name, snippet))
-    except psycopg2.IntegrityError as e:
-        connection.rollback()
-        command = "update snippets set message=%s where keyword=%s"
-        cursor.execute(command, (snippet, name))
-    connection.commit()
+    # logging.error("FIXME: Unimplemented - put({!r}, {!r})".format(name, snippet))
+    with connection, connection.cursor() as cursor:
+        try:
+            command = "insert into snippets values (%s, %s)"
+            cursor.execute(command, (name, snippet))
+        except psycopg2.IntegrityError as e:
+            # connection.rollback()
+            command = "update snippets set message=%s where keyword=%s"
+            cursor.execute(command, (snippet, name))
+    # connection.commit()
     logging.debug("Snippet stored successfully.")
     return name, snippet
     
@@ -31,7 +35,7 @@ def get(name):
 
     Returns the snippet.
     """
-    logging.error("FIXME: Unimplemented - get({!r})".format(name))
+    # logging.error("FIXME: Unimplemented - get({!r})".format(name))
     with connection, connection.cursor() as cursor:
         cursor.execute("select message from snippets where keyword=%s", (name,))
         row = cursor.fetchone()
@@ -41,8 +45,13 @@ def get(name):
     return row[0]
     
 def catalog():
-    cursor.fetchall()
-    
+    with connection, connection.cursor() as cursor:
+        cursor.execute("select keyword from snippets")
+        # rows = cursor.fetchall()
+        for row in cursor.fetchall():
+            print (row)
+    # return rows
+
 def main():
     """Main function"""
     logging.info("Constructing parser")
@@ -56,10 +65,10 @@ def main():
     put_parser.add_argument("name", help="Name of the snippet")
     put_parser.add_argument("snippet", help="Snippet text")
 
-    get_parser = subparsers.add_parser("get", help="Store a snippet")
+    get_parser = subparsers.add_parser("get", help="Find a snippet")
     get_parser.add_argument("name", help="Name of the snippet")
     
-    catalog_parser =subparsers.add_parser("catalog", help="Catalog of snippets")
+    catalog_parser = subparsers.add_parser("catalog", help="Catalog of snippets")
 
     arguments = parser.parse_args()
     # Convert parsed arguments from Namespace to dictionary
@@ -72,10 +81,9 @@ def main():
     elif command == "get":
         snippet = get(**arguments)
         print("Retrieved snippet: {!r}".format(snippet))
-        
-logging.debug("Connecting to PostgreSQL")
-connection = psycopg2.connect(database="snippets")
-logging.debug("Database connection established.")
+    elif command == "catalog":
+        snippets = catalog(**arguments)
+        print("Retrieved snippets: {!r}".format(snippets))
 
 if __name__ == "__main__":
     main()
